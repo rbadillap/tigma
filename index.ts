@@ -76,7 +76,7 @@ const FILL_PALETTE: (RGBA | null)[] = [
   RGBA.fromInts(80, 80, 30, 255),    // muted yellow
 ]
 
-type Tool = "move" | "text" | "rectangle" | "line" | "select"
+type Tool = "move" | "text" | "rectangle" | "line"
 
 interface ToolInfo {
   name: string
@@ -85,7 +85,6 @@ interface ToolInfo {
 
 const TOOLS: Record<Tool, ToolInfo> = {
   move: { name: "Move", key: "M" },
-  select: { name: "Select", key: "S" },
   text: { name: "Text", key: "T" },
   rectangle: { name: "Rectangle", key: "R" },
   line: { name: "Line", key: "L" }
@@ -172,6 +171,7 @@ class CanvasApp {
   private saveStatusTimeout: number = 0
 
   private isSelecting = false
+  private isSelectionPending = false
 
   // Save prompt state
   private showSavePrompt: boolean = false
@@ -760,6 +760,12 @@ class CanvasApp {
       if (event.x !== this.mouseDownX || event.y !== this.mouseDownY) {
         this.hasDragged = true
       }
+
+      if (this.isSelectionPending && this.hasDragged && this.currentTool === "move") {
+        this.isSelectionPending = false
+        this.isSelecting = true
+        this.isDraggingMouse = true
+      }
       
       if (this.isDraggingSelection) {
         // Move all selected items
@@ -774,10 +780,6 @@ class CanvasApp {
         if (rectId !== undefined) {
           this.resizeRect(rectId, event.x, event.y)
         }
-      } else if (this.isDrawingRect || this.isDrawingLine) {
-        this.drawCursorX = Math.max(0, Math.min(this.gridWidth - 1, event.x))
-        this.drawCursorY = Math.max(0, Math.min(this.gridHeight - 1, event.y))
-        this.renderer.requestRender()
       } else if (this.isDrawingRect || this.isDrawingLine || this.isSelecting) {
         this.drawCursorX = Math.max(0, Math.min(this.gridWidth - 1, event.x))
         this.drawCursorY = Math.max(0, Math.min(this.gridHeight - 1, event.y))
@@ -825,6 +827,7 @@ class CanvasApp {
       this.clickedOnSelectedTextBox = false
       this.hasDragged = false
       this.isSelecting = false
+      this.isSelectionPending = false
 
       return
     }
@@ -965,10 +968,15 @@ class CanvasApp {
           return
         }
 
-        // Clicking on empty space - clear selection (unless shift is held)
+        // Clicking on empty space - clear selection (unless shift is held) and prep box selection
         if (!shiftHeld) {
           this.clearSelection()
         }
+        this.isSelectionPending = true
+        this.drawStartX = event.x
+        this.drawStartY = event.y
+        this.drawCursorX = event.x
+        this.drawCursorY = event.y
         this.renderer.requestRender()
         return
       }
@@ -1014,14 +1022,6 @@ class CanvasApp {
       } else if (this.currentTool === "line") {
         // Start drawing line
         this.isDrawingLine = true
-        this.isDraggingMouse = true
-        this.drawStartX = event.x
-        this.drawStartY = event.y
-        this.drawCursorX = event.x
-        this.drawCursorY = event.y
-      } else if (this.currentTool === "select") {
-        // Start selection
-        this.isSelecting = true
         this.isDraggingMouse = true
         this.drawStartX = event.x
         this.drawStartY = event.y
@@ -1436,7 +1436,6 @@ class CanvasApp {
     }
 
     this.isSelecting = false
-    this.setTool("move")
   }
 
   private deleteLine(id: number): void {
@@ -1593,6 +1592,7 @@ class CanvasApp {
     this.isDrawingRect = false
     this.isDrawingLine = false
     this.isSelecting = false
+    this.isSelectionPending = false
     this.isDraggingMouse = false
     this.currentTool = tool
     
@@ -2370,7 +2370,7 @@ class CanvasApp {
     if (this.activeTextBoxId !== null) {
       modeText = "| Editing (Esc to finish)"
     } else if (this.currentTool === "move") {
-      modeText = "| Click to select, drag to move"
+      modeText = "| Click to select, drag to move, drag empty space to box-select"
     } else if (this.currentTool === "text") {
       modeText = "| Click to add/edit text"
     } else if (this.isDrawingRect || this.isDrawingLine) {
@@ -2439,10 +2439,6 @@ class CanvasApp {
       if (!this.isDrawingRect && !this.isDrawingLine && !this.isDraggingMouse) {
         if (key.sequence === "m" || key.sequence === "M") {
           this.setTool("move")
-          return
-        }
-        if (key.sequence === "s" || key.sequence === "S") {
-          this.setTool("select")
           return
         }
         if (key.sequence === "t" || key.sequence === "T") {
