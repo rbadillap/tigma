@@ -40,6 +40,7 @@ Switch between tools using keyboard shortcuts:
 | `Ctrl+S` | Save file (prompts for filename if new) |
 | `Ctrl+Z` | Undo |
 | `Ctrl+U` | Redo |
+| `Ctrl+D` | Duplicate selected objects |
 | `Delete` / `Backspace` | Delete selected or hovered object(s) |
 | `Escape` | Cancel current drawing / exit text editing |
 

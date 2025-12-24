@@ -733,6 +733,120 @@ class CanvasApp {
     this.renderer.requestRender()
   }
 
+  // ==================== Duplicate Selection ====================
+
+  private duplicateSelection(): void {
+    if (!this.hasSelection()) return
+
+    this.saveSnapshot()
+
+    const offsetX = 2  // Small offset so duplicates are visible
+    const offsetY = 2
+
+    // Duplicate selected text boxes
+    const newTextBoxIds: number[] = []
+    for (const id of this.selectedTextBoxIds) {
+      const box = this.textBoxes.find(b => b.id === id)
+      if (box) {
+        const newBox: TextBox = {
+          id: this.nextTextBoxId++,
+          x: box.x + offsetX,
+          y: box.y + offsetY,
+          chars: box.chars.map(c => ({ ...c })), // Deep copy chars
+          zIndex: this.nextZIndex++,
+          strokeColor: box.strokeColor,
+          fillColor: box.fillColor,
+        }
+        // Ensure new position is within bounds
+        newBox.x = Math.max(0, Math.min(this.gridWidth - Math.max(1, newBox.chars.length), newBox.x))
+        newBox.y = Math.max(0, Math.min(this.gridHeight - 1, newBox.y))
+        this.textBoxes.push(newBox)
+        newTextBoxIds.push(newBox.id)
+      }
+    }
+
+    // Duplicate selected rectangles
+    const newRectIds: number[] = []
+    for (const id of this.selectedRectIds) {
+      const rect = this.rectangles.find(r => r.id === id)
+      if (rect) {
+        const newRect: Rectangle = {
+          id: this.nextRectId++,
+          x1: rect.x1 + offsetX,
+          y1: rect.y1 + offsetY,
+          x2: rect.x2 + offsetX,
+          y2: rect.y2 + offsetY,
+          bold: rect.bold,
+          zIndex: this.nextZIndex++,
+          strokeColor: rect.strokeColor,
+          fillColor: rect.fillColor,
+        }
+        // Ensure new position is within bounds
+        const normalized = this.normalizeRect(newRect)
+        const width = normalized.x2 - normalized.x1
+        const height = normalized.y2 - normalized.y1
+        if (normalized.x1 < 0) {
+          newRect.x1 = 0
+          newRect.x2 = width
+        }
+        if (normalized.x2 >= this.gridWidth) {
+          newRect.x2 = this.gridWidth - 1
+          newRect.x1 = newRect.x2 - width
+        }
+        if (normalized.y1 < 0) {
+          newRect.y1 = 0
+          newRect.y2 = height
+        }
+        if (normalized.y2 >= this.gridHeight) {
+          newRect.y2 = this.gridHeight - 1
+          newRect.y1 = newRect.y2 - height
+        }
+        this.rectangles.push(newRect)
+        newRectIds.push(newRect.id)
+      }
+    }
+
+    // Duplicate selected lines
+    const newLineIds: number[] = []
+    for (const id of this.selectedLineIds) {
+      const line = this.lines.find(l => l.id === id)
+      if (line) {
+        const newLine: Line = {
+          id: this.nextLineId++,
+          x1: line.x1 + offsetX,
+          y1: line.y1 + offsetY,
+          x2: line.x2 + offsetX,
+          y2: line.y2 + offsetY,
+          bold: line.bold,
+          zIndex: this.nextZIndex++,
+          strokeColor: line.strokeColor,
+          fillColor: line.fillColor,
+        }
+        // Ensure new position is within bounds
+        newLine.x1 = Math.max(0, Math.min(this.gridWidth - 1, newLine.x1))
+        newLine.y1 = Math.max(0, Math.min(this.gridHeight - 1, newLine.y1))
+        newLine.x2 = Math.max(0, Math.min(this.gridWidth - 1, newLine.x2))
+        newLine.y2 = Math.max(0, Math.min(this.gridHeight - 1, newLine.y2))
+        this.lines.push(newLine)
+        newLineIds.push(newLine.id)
+      }
+    }
+
+    // Select the newly duplicated objects
+    this.clearSelection()
+    for (const id of newTextBoxIds) {
+      this.selectedTextBoxIds.add(id)
+    }
+    for (const id of newRectIds) {
+      this.selectedRectIds.add(id)
+    }
+    for (const id of newLineIds) {
+      this.selectedLineIds.add(id)
+    }
+
+    this.renderer.requestRender()
+  }
+
   // ==================== Mouse Handling ====================
 
   private handleMouse(event: MouseEvent): void {
@@ -2468,6 +2582,12 @@ class CanvasApp {
       }
       if (key.name === "u" && key.ctrl && !key.meta) {
         this.redo()
+        return
+      }
+
+      // Duplicate selection
+      if (key.name === "d" && key.ctrl && !key.meta) {
+        this.duplicateSelection()
         return
       }
 
